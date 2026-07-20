@@ -65,9 +65,6 @@ def get_all_layers(layer, treat_as_input=None):
     >>> get_all_layers(l3, treat_as_input=[l2]) == [l2, l3]
     True
     """
-    # We perform a depth-first search. We add a layer to the result list only
-    # after adding all its incoming layers (if any) or when detecting a cycle.
-    # We use a LIFO stack to avoid ever running into recursion depth limits.
     try:
         queue = deque(layer)
     except TypeError:
@@ -76,30 +73,20 @@ def get_all_layers(layer, treat_as_input=None):
     done = set()
     result = []
 
-    # If treat_as_input is given, we pretend we've already collected all their
-    # incoming layers.
     if treat_as_input is not None:
         seen.update(treat_as_input)
 
     while queue:
-        # Peek at the leftmost node in the queue.
         layer = queue[0]
         if layer is None:
-            # Some node had an input_layer set to `None`. Just ignore it.
             queue.popleft()
         elif layer not in seen:
-            # We haven't seen this node yet: Mark it and queue all incomings
-            # to be processed first. If there are no incomings, the node will
-            # be appended to the result list in the next iteration.
             seen.add(layer)
             if hasattr(layer, 'input_layers'):
                 queue.extendleft(reversed(layer.input_layers))
             elif hasattr(layer, 'input_layer'):
                 queue.appendleft(layer.input_layer)
         else:
-            # We've been here before: Either we've finished all its incomings,
-            # or we've detected a cycle. In both cases, we remove the layer
-            # from the queue and append it to the result list.
             queue.popleft()
             if layer not in done:
                 result.append(layer)
@@ -149,24 +136,19 @@ def get_output(layer_or_layers, inputs=None, **kwargs):
     """
     from .input import InputLayer
     from .base import MergeLayer, Layer
-    # check if the keys of the dictionary are valid
     if isinstance(inputs, dict):
         for input_key in inputs.keys():
             if (input_key is not None) and (not isinstance(input_key, Layer)):
                 raise TypeError("The inputs dictionary keys must be"
                                 " lasagne layers not %s." %
                                 type(input_key))
-    # track accepted kwargs used by get_output_for
     accepted_kwargs = {'deterministic'}
-    # obtain topological ordering of all layers the output layer(s) depend on
     treat_as_input = inputs.keys() if isinstance(inputs, dict) else []
     all_layers = get_all_layers(layer_or_layers, treat_as_input)
-    # initialize layer-to-expression mapping from all input layers
     all_outputs = dict((layer, layer.input_var)
                        for layer in all_layers
                        if isinstance(layer, InputLayer) and
                        layer not in treat_as_input)
-    # update layer-to-expression mapping from given input(s), if any
     if isinstance(inputs, dict):
         all_outputs.update((layer, utils.as_theano_expression(expr))
                            for layer, expr in inputs.items())
@@ -178,7 +160,6 @@ def get_output(layer_or_layers, inputs=None, **kwargs):
                              "input expressions instead.")
         for input_layer in all_outputs:
             all_outputs[input_layer] = utils.as_theano_expression(inputs)
-    # update layer-to-expression mapping by propagating the inputs
     for layer in all_layers:
         if layer not in all_outputs:
             try:
@@ -188,7 +169,6 @@ def get_output(layer_or_layers, inputs=None, **kwargs):
                 else:
                     layer_inputs = all_outputs[layer.input_layer]
             except KeyError:
-                # one of the input_layer attributes must have been `None`
                 raise ValueError("get_output() was called without giving an "
                                  "input expression for the free-floating "
                                  "layer %r. Please call it with a dictionary "
@@ -199,7 +179,6 @@ def get_output(layer_or_layers, inputs=None, **kwargs):
                 accepted_kwargs |= set(utils.inspect_kwargs(
                         layer.get_output_for))
             except TypeError:
-                # If introspection is not possible, skip it
                 pass
             accepted_kwargs |= set(layer.get_output_kwargs)
     unused_kwargs = set(kwargs.keys()) - accepted_kwargs
@@ -214,7 +193,6 @@ def get_output(layer_or_layers, inputs=None, **kwargs):
                 suggestions.append(kwarg)
         warn("get_output() was called with unused kwargs:\n\t%s"
              % "\n\t".join(suggestions))
-    # return the output(s) of the requested layer(s) only
     try:
         return [all_outputs[layer] for layer in layer_or_layers]
     except TypeError:
@@ -222,76 +200,7 @@ def get_output(layer_or_layers, inputs=None, **kwargs):
 
 
 def get_output_shape(layer_or_layers, input_shapes=None):
-    """
-    Computes the output shape of the network at one or more given layers.
-
-    Parameters
-    ----------
-    layer_or_layers : Layer or list
-        the :class:`Layer` instance for which to compute the output
-        shapes, or a list of :class:`Layer` instances.
-
-    input_shapes : None, tuple, or dict
-        If None, uses the input shapes associated with the
-        :class:`InputLayer` instances.
-        If a tuple, this defines the input shape for a single
-        :class:`InputLayer` instance. Will throw a ValueError if there
-        are multiple :class:`InputLayer` instances.
-        If a dictionary, any :class:`Layer` instance (including the
-        input layers) can be mapped to a shape tuple to use instead of
-        its regular output shape.
-
-    Returns
-    -------
-    tuple or list
-        the output shape of the given layer(s) for the given network input
-    """
-    # shortcut: return precomputed shapes if we do not need to propagate any
-    if input_shapes is None or input_shapes == {}:
-        try:
-            return [layer.output_shape for layer in layer_or_layers]
-        except TypeError:
-            return layer_or_layers.output_shape
-
-    from .input import InputLayer
-    from .base import MergeLayer
-    # obtain topological ordering of all layers the output layer(s) depend on
-    if isinstance(input_shapes, dict):
-        treat_as_input = input_shapes.keys()
-    else:
-        treat_as_input = []
-
-    all_layers = get_all_layers(layer_or_layers, treat_as_input)
-    # initialize layer-to-shape mapping from all input layers
-    all_shapes = dict((layer, layer.shape)
-                      for layer in all_layers
-                      if isinstance(layer, InputLayer) and
-                      layer not in treat_as_input)
-    # update layer-to-shape mapping from given input(s), if any
-    if isinstance(input_shapes, dict):
-        all_shapes.update(input_shapes)
-    elif input_shapes is not None:
-        if len(all_shapes) > 1:
-            raise ValueError("get_output_shape() was called with a single "
-                             "input shape on a network with multiple input "
-                             "layers. Please call it with a dictionary of "
-                             "input shapes instead.")
-        for input_layer in all_shapes:
-            all_shapes[input_layer] = input_shapes
-    # update layer-to-shape mapping by propagating the input shapes
-    for layer in all_layers:
-        if layer not in all_shapes:
-            if isinstance(layer, MergeLayer):
-                input_shapes = [all_shapes[input_layer]
-                                for input_layer in layer.input_layers]
-            else:
-                input_shapes = all_shapes[layer.input_layer]
-            all_shapes[layer] = layer.get_output_shape_for(input_shapes)
-    # return the output shape(s) of the requested layer(s) only
-    try:
-        return [all_shapes[layer] for layer in layer_or_layers]
-    except TypeError:
-        return all_shapes[layer_or_layers]
+    pass
 
 
 def get_all_params(layer, unwrap_shared=True, **tags):
@@ -379,146 +288,12 @@ def get_all_params(layer, unwrap_shared=True, **tags):
 
 
 def count_params(layer, **tags):
-    """
-    This function counts all parameters (i.e., the number of scalar
-    values) of all layers below one or more given :class:`Layer` instances,
-    including the layer(s) itself.
-
-    This is useful to compare the capacity of various network architectures.
-    All parameters returned by the :class:`Layer`s' `get_params` methods are
-    counted.
-
-    Parameters
-    ----------
-    layer : Layer or list
-        The :class:`Layer` instance for which to count the parameters, or a
-        list of :class:`Layer` instances.
-
-    **tags (optional)
-        tags can be specified to filter the list of parameter variables that
-        will be included in the count. Specifying ``tag1=True``
-        will limit the list to parameters that are tagged with ``tag1``.
-        Specifying ``tag1=False`` will limit the list to parameters that
-        are not tagged with ``tag1``. Commonly used tags are
-        ``regularizable`` and ``trainable``.
-
-    Returns
-    -------
-    int
-        The total number of learnable parameters.
-
-    Examples
-    --------
-    >>> from lasagne.layers import InputLayer, DenseLayer
-    >>> l_in = InputLayer((100, 20))
-    >>> l1 = DenseLayer(l_in, num_units=50)
-    >>> param_count = count_params(l1)
-    >>> param_count
-    1050
-    >>> param_count == 20 * 50 + 50  # 20 input * 50 units + 50 biases
-    True
-    """
-    params = get_all_params(layer, **tags)
-    shapes = [p.get_value().shape for p in params]
-    counts = [np.prod(shape) for shape in shapes]
-    return sum(counts)
+    pass
 
 
 def get_all_param_values(layer, **tags):
-    """
-    This function returns the values of the parameters of all layers below one
-    or more given :class:`Layer` instances, including the layer(s) itself.
-
-    This function can be used in conjunction with set_all_param_values to save
-    and restore model parameters.
-
-    Parameters
-    ----------
-    layer : Layer or list
-        The :class:`Layer` instance for which to gather all parameter values,
-        or a list of :class:`Layer` instances.
-
-    **tags (optional)
-        tags can be specified to filter the list. Specifying ``tag1=True``
-        will limit the list to parameters that are tagged with ``tag1``.
-        Specifying ``tag1=False`` will limit the list to parameters that
-        are not tagged with ``tag1``. Commonly used tags are
-        ``regularizable`` and ``trainable``.
-
-    Returns
-    -------
-    list of numpy.array
-        A list of numpy arrays representing the parameter values.
-
-    Examples
-    --------
-    >>> from lasagne.layers import InputLayer, DenseLayer
-    >>> l_in = InputLayer((100, 20))
-    >>> l1 = DenseLayer(l_in, num_units=50)
-    >>> all_param_values = get_all_param_values(l1)
-    >>> (all_param_values[0] == l1.W.get_value()).all()
-    True
-    >>> (all_param_values[1] == l1.b.get_value()).all()
-    True
-    """
-    params = get_all_params(layer, **tags)
-    return [p.get_value() for p in params]
+    pass
 
 
 def set_all_param_values(layer, values, **tags):
-    """
-    Given a list of numpy arrays, this function sets the parameters of all
-    layers below one or more given :class:`Layer` instances (including the
-    layer(s) itself) to the given values.
-
-    This function can be used in conjunction with get_all_param_values to save
-    and restore model parameters.
-
-    Parameters
-    ----------
-    layer : Layer or list
-        The :class:`Layer` instance for which to set all parameter values, or a
-        list of :class:`Layer` instances.
-
-    values : list of numpy.array
-        A list of numpy arrays representing the parameter values, must match
-        the number of parameters.
-        Every parameter's shape must match the shape of its new value.
-
-    **tags (optional)
-        tags can be specified to filter the list of parameters to be set.
-        Specifying ``tag1=True`` will limit the list to parameters that are
-        tagged with ``tag1``.
-        Specifying ``tag1=False`` will limit the list to parameters that
-        are not tagged with ``tag1``. Commonly used tags are
-        ``regularizable`` and ``trainable``.
-
-    Raises
-    ------
-    ValueError
-        If the number of values is not equal to the number of params, or
-        if a parameter's shape does not match the shape of its new value.
-
-    Examples
-    --------
-    >>> from lasagne.layers import InputLayer, DenseLayer
-    >>> l_in = InputLayer((100, 20))
-    >>> l1 = DenseLayer(l_in, num_units=50)
-    >>> all_param_values = get_all_param_values(l1)
-    >>> # all_param_values is now [l1.W.get_value(), l1.b.get_value()]
-    >>> # ...
-    >>> set_all_param_values(l1, all_param_values)
-    >>> # the parameter values are restored.
-    """
-    params = get_all_params(layer, **tags)
-    if len(params) != len(values):
-        raise ValueError("mismatch: got %d values to set %d parameters" %
-                         (len(values), len(params)))
-
-    for p, v in zip(params, values):
-        if p.get_value().shape != v.shape:
-            raise ValueError("mismatch: parameter has shape %r but value to "
-                             "set has shape %r" %
-                             (p.get_value().shape, v.shape))
-        else:
-            p.set_value(v)
+    pass

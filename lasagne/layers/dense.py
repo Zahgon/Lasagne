@@ -14,64 +14,6 @@ __all__ = [
 
 
 class DenseLayer(Layer):
-    """
-    lasagne.layers.DenseLayer(incoming, num_units,
-    W=lasagne.init.GlorotUniform(), b=lasagne.init.Constant(0.),
-    nonlinearity=lasagne.nonlinearities.rectify, num_leading_axes=1, **kwargs)
-
-    A fully connected layer.
-
-    Parameters
-    ----------
-    incoming : a :class:`Layer` instance or a tuple
-        The layer feeding into this layer, or the expected input shape
-
-    num_units : int
-        The number of units of the layer
-
-    W : Theano shared variable, expression, numpy array or callable
-        Initial value, expression or initializer for the weights.
-        These should be a matrix with shape ``(num_inputs, num_units)``.
-        See :func:`lasagne.utils.create_param` for more information.
-
-    b : Theano shared variable, expression, numpy array, callable or ``None``
-        Initial value, expression or initializer for the biases. If set to
-        ``None``, the layer will have no biases. Otherwise, biases should be
-        a 1D array with shape ``(num_units,)``.
-        See :func:`lasagne.utils.create_param` for more information.
-
-    nonlinearity : callable or None
-        The nonlinearity that is applied to the layer activations. If None
-        is provided, the layer will be linear.
-
-    num_leading_axes : int
-        Number of leading axes to distribute the dot product over. These axes
-        will be kept in the output tensor, remaining axes will be collapsed and
-        multiplied against the weight matrix. A negative number gives the
-        (negated) number of trailing axes to involve in the dot product.
-
-    Examples
-    --------
-    >>> from lasagne.layers import InputLayer, DenseLayer
-    >>> l_in = InputLayer((100, 20))
-    >>> l1 = DenseLayer(l_in, num_units=50)
-
-    If the input has more than two axes, by default, all trailing axes will be
-    flattened. This is useful when a dense layer follows a convolutional layer.
-
-    >>> l_in = InputLayer((None, 10, 20, 30))
-    >>> DenseLayer(l_in, num_units=50).output_shape
-    (None, 50)
-
-    Using the `num_leading_axes` argument, you can specify to keep more than
-    just the first axis. E.g., to apply the same dot product to each step of a
-    batch of time sequences, you would want to keep the first two axes.
-
-    >>> DenseLayer(l_in, num_units=50, num_leading_axes=2).output_shape
-    (None, 10, 50)
-    >>> DenseLayer(l_in, num_units=50, num_leading_axes=-1).output_shape
-    (None, 10, 20, 50)
-    """
     def __init__(self, incoming, num_units, W=init.GlorotUniform(),
                  b=init.Constant(0.), nonlinearity=nonlinearities.rectify,
                  num_leading_axes=1, **kwargs):
@@ -115,7 +57,6 @@ class DenseLayer(Layer):
         if num_leading_axes < 0:
             num_leading_axes += input.ndim
         if input.ndim > num_leading_axes + 1:
-            # flatten trailing axes (into (n+1)-tensor for num_leading_axes=n)
             input = input.flatten(num_leading_axes + 1)
 
         activation = T.dot(input, self.W)
@@ -125,59 +66,6 @@ class DenseLayer(Layer):
 
 
 class NINLayer(Layer):
-    """
-    lasagne.layers.NINLayer(incoming, num_units, untie_biases=False,
-    W=lasagne.init.GlorotUniform(), b=lasagne.init.Constant(0.),
-    nonlinearity=lasagne.nonlinearities.rectify, **kwargs)
-
-    Network-in-network layer.
-    Like DenseLayer, but broadcasting across all trailing dimensions beyond the
-    2nd.  This results in a convolution operation with filter size 1 on all
-    trailing dimensions.  Any number of trailing dimensions is supported,
-    so NINLayer can be used to implement 1D, 2D, 3D, ... convolutions.
-
-    Parameters
-    ----------
-    incoming : a :class:`Layer` instance or a tuple
-        The layer feeding into this layer, or the expected input shape
-
-    num_units : int
-        The number of units of the layer
-
-    untie_biases : bool
-        If false the network has a single bias vector similar to a dense
-        layer. If true a separate bias vector is used for each trailing
-        dimension beyond the 2nd.
-
-    W : Theano shared variable, expression, numpy array or callable
-        Initial value, expression or initializer for the weights.
-        These should be a matrix with shape ``(num_inputs, num_units)``,
-        where ``num_inputs`` is the size of the second dimension of the input.
-        See :func:`lasagne.utils.create_param` for more information.
-
-    b : Theano shared variable, expression, numpy array, callable or ``None``
-        Initial value, expression or initializer for the biases. If set to
-        ``None``, the layer will have no biases. Otherwise, biases should be
-        a 1D array with shape ``(num_units,)`` for ``untie_biases=False``, and
-        a tensor of shape ``(num_units, input_shape[2], ..., input_shape[-1])``
-        for ``untie_biases=True``.
-        See :func:`lasagne.utils.create_param` for more information.
-
-    nonlinearity : callable or None
-        The nonlinearity that is applied to the layer activations. If None
-        is provided, the layer will be linear.
-
-    Examples
-    --------
-    >>> from lasagne.layers import InputLayer, NINLayer
-    >>> l_in = InputLayer((100, 20, 10, 3))
-    >>> l1 = NINLayer(l_in, num_units=5)
-
-    References
-    ----------
-    .. [1] Lin, Min, Qiang Chen, and Shuicheng Yan (2013):
-           Network in network. arXiv preprint arXiv:1312.4400.
-    """
     def __init__(self, incoming, num_units, untie_biases=False,
                  W=init.GlorotUniform(), b=init.Constant(0.),
                  nonlinearity=nonlinearities.rectify, **kwargs):
@@ -205,18 +93,14 @@ class NINLayer(Layer):
         return (input_shape[0], self.num_units) + input_shape[2:]
 
     def get_output_for(self, input, **kwargs):
-        # cf * bc01... = fb01...
         out_r = T.tensordot(self.W, input, axes=[[0], [1]])
-        # input dims to broadcast over
         remaining_dims = range(2, input.ndim)
-        # bf01...
         out = out_r.dimshuffle(1, 0, *remaining_dims)
 
         if self.b is None:
             activation = out
         else:
             if self.untie_biases:
-                # no broadcast
                 remaining_dims_biases = range(1, input.ndim - 1)
             else:
                 remaining_dims_biases = ['x'] * (input.ndim - 2)  # broadcast

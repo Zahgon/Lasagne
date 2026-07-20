@@ -1,6 +1,3 @@
-"""
-Padding
-"""
 
 import theano.tensor as T
 

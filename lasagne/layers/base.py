@@ -11,24 +11,8 @@ __all__ = [
 ]
 
 
-# Layer base class
 
 class Layer(object):
-    """
-    The :class:`Layer` class represents a single layer of a neural network. It
-    should be subclassed when implementing new types of layers.
-
-    Because each layer can keep track of the layer(s) feeding into it, a
-    network's output :class:`Layer` instance can double as a handle to the full
-    network.
-
-    Parameters
-    ----------
-    incoming : a :class:`Layer` instance or a tuple
-        The layer feeding into this layer, or the expected input shape.
-    name : a string or None
-        An optional name to attach to this layer.
-    """
     def __init__(self, incoming, name=None):
         if isinstance(incoming, tuple):
             self.input_shape = incoming
@@ -47,16 +31,6 @@ class Layer(object):
                 "dimension. input_shape=%r, self.name=%r") % (
                     self.input_shape, self.name))
 
-    @property
-    def output_shape(self):
-        shape = self.get_output_shape_for(self.input_shape)
-        if any(isinstance(s, T.Variable) for s in shape):
-            raise ValueError("%s returned a symbolic output shape from its "
-                             "get_output_shape_for() method: %r. This is not "
-                             "allowed; shapes must be tuples of integers for "
-                             "fixed-size dimensions and Nones for variable "
-                             "dimensions." % (self.__class__.__name__, shape))
-        return shape
 
     def get_params(self, unwrap_shared=True, **tags):
         """
@@ -105,13 +79,11 @@ class Layer(object):
 
         only = set(tag for tag, value in tags.items() if value)
         if only:
-            # retain all parameters that have all of the tags in `only`
             result = [param for param in result
                       if not (only - self.params[param])]
 
         exclude = set(tag for tag, value in tags.items() if not value)
         if exclude:
-            # retain all parameters that have none of the tags in `exclude`
             result = [param for param in result
                       if not (self.params[param] & exclude)]
 
@@ -174,85 +146,10 @@ class Layer(object):
         raise NotImplementedError
 
     def add_param(self, spec, shape, name=None, **tags):
-        """
-        Register and possibly initialize a parameter tensor for the layer.
-
-        When defining a layer class, this method is called in the constructor
-        to define which parameters the layer has, what their shapes are, how
-        they should be initialized and what tags are associated with them.
-        This allows layer classes to transparently support parameter
-        initialization from numpy arrays and callables, as well as setting
-        parameters to existing Theano shared variables or Theano expressions.
-
-        All registered parameters are stored along with their tags in the
-        ordered dictionary :attr:`Layer.params`, and can be retrieved with
-        :meth:`Layer.get_params()`, optionally filtered by their tags.
-
-        Parameters
-        ----------
-        spec : Theano shared variable, expression, numpy array or callable
-            initial value, expression or initializer for this parameter.
-            See :func:`lasagne.utils.create_param` for more information.
-
-        shape : tuple of int
-            a tuple of integers representing the desired shape of the
-            parameter tensor.
-
-        name : str (optional)
-            a descriptive name for the parameter variable. This will be passed
-            to ``theano.shared`` when the variable is created, prefixed by the
-            layer's name if any (in the form ``'layer_name.param_name'``). If
-            ``spec`` is already a shared variable or expression, this parameter
-            will be ignored to avoid overwriting an existing name.
-
-        **tags (optional)
-            tags associated with the parameter can be specified as keyword
-            arguments. To associate the tag ``tag1`` with the parameter, pass
-            ``tag1=True``.
-
-            By default, the tags ``regularizable`` and ``trainable`` are
-            associated with the parameter. Pass ``regularizable=False`` or
-            ``trainable=False`` respectively to prevent this.
-
-        Returns
-        -------
-        Theano shared variable or Theano expression
-            the resulting parameter variable or parameter expression
-
-        Notes
-        -----
-        It is recommended to assign the resulting parameter variable/expression
-        to an attribute of the layer for easy access, for example:
-
-        >>> self.W = self.add_param(W, (2, 3), name='W')  #doctest: +SKIP
-        """
-        # prefix the param name with the layer name if it exists
-        if name is not None:
-            if self.name is not None:
-                name = "%s.%s" % (self.name, name)
-        # create shared variable, or pass through given variable/expression
-        param = utils.create_param(spec, shape, name)
-        # parameters should be trainable and regularizable by default
-        tags['trainable'] = tags.get('trainable', True)
-        tags['regularizable'] = tags.get('regularizable', True)
-        self.params[param] = set(tag for tag, value in tags.items() if value)
-
-        return param
+        pass
 
 
 class MergeLayer(Layer):
-    """
-    This class represents a layer that aggregates input from multiple layers.
-    It should be subclassed when implementing new types of layers that obtain
-    their input from multiple layers.
-
-    Parameters
-    ----------
-    incomings : a list of :class:`Layer` instances or tuples
-        The layers feeding into this layer, or expected input shapes.
-    name : a string or None
-        An optional name to attach to this layer.
-    """
     def __init__(self, incomings, name=None):
         self.input_shapes = [incoming if isinstance(incoming, tuple)
                              else incoming.output_shape
@@ -264,16 +161,6 @@ class MergeLayer(Layer):
         self.params = OrderedDict()
         self.get_output_kwargs = []
 
-    @Layer.output_shape.getter
-    def output_shape(self):
-        shape = self.get_output_shape_for(self.input_shapes)
-        if any(isinstance(s, T.Variable) for s in shape):
-            raise ValueError("%s returned a symbolic output shape from its "
-                             "get_output_shape_for() method: %r. This is not "
-                             "allowed; shapes must be tuples of integers for "
-                             "fixed-size dimensions and Nones for variable "
-                             "dimensions." % (self.__class__.__name__, shape))
-        return shape
 
     def get_output_shape_for(self, input_shapes):
         """

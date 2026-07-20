@@ -61,8 +61,6 @@ def pool_output_length(input_length, pool_size, stride, pad, ignore_border):
         output_length = input_length + 2 * pad - pool_size + 1
         output_length = (output_length + stride - 1) // stride
 
-    # output length calculation taken from:
-    # https://github.com/Theano/Theano/blob/master/theano/tensor/signal/downsample.py
     else:
         assert pad == 0
 
@@ -83,7 +81,6 @@ def pool_2d(input, **kwargs):
     try:
         return T.signal.pool.pool_2d(input, **kwargs)
     except TypeError:  # pragma: no cover
-        # convert from new to old interface
         kwargs['ds'] = kwargs.pop('ws')
         kwargs['st'] = kwargs.pop('stride')
         kwargs['padding'] = kwargs.pop('pad')
@@ -98,7 +95,6 @@ def pool_3d(input, **kwargs):  # pragma: no cover
     try:
         return T.signal.pool.pool_3d(input, **kwargs)
     except TypeError:  # pragma: no cover
-        # convert from new to old interface
         kwargs['ds'] = kwargs.pop('ws')
         kwargs['st'] = kwargs.pop('stride')
         kwargs['padding'] = kwargs.pop('pad')
@@ -106,54 +102,6 @@ def pool_3d(input, **kwargs):  # pragma: no cover
 
 
 class Pool1DLayer(Layer):
-    """
-    1D pooling layer
-
-    Performs 1D mean or max-pooling over the trailing axis
-    of a 3D input tensor.
-
-    Parameters
-    ----------
-    incoming : a :class:`Layer` instance or tuple
-        The layer feeding into this layer, or the expected input shape.
-
-    pool_size : integer or iterable
-        The length of the pooling region. If an iterable, it should have a
-        single element.
-
-    stride : integer, iterable or ``None``
-        The stride between sucessive pooling regions.
-        If ``None`` then ``stride == pool_size``.
-
-    pad : integer or iterable
-        The number of elements to be added to the input on each side.
-        Must be less than stride.
-
-    ignore_border : bool
-        If ``True``, partial pooling regions will be ignored.
-        Must be ``True`` if ``pad != 0``.
-
-    mode : {'max', 'average_inc_pad', 'average_exc_pad'}
-        Pooling mode: max-pooling or mean-pooling including/excluding zeros
-        from partially padded pooling regions. Default is 'max'.
-
-    **kwargs
-        Any additional keyword arguments are passed to the :class:`Layer`
-        superclass.
-
-    See Also
-    --------
-    MaxPool1DLayer : Shortcut for max pooling layer.
-
-    Notes
-    -----
-    The value used to pad the input is chosen to be less than
-    the minimum of the input, so that the output of each pooling region
-    always corresponds to some element in the unpadded input region.
-
-    Using ``ignore_border=False`` prevents Theano from using cuDNN for the
-    operation, so it will fall back to a slower implementation.
-    """
     def __init__(self, incoming, pool_size, stride=None, pad=0,
                  ignore_border=True, mode='max', **kwargs):
         super(Pool1DLayer, self).__init__(incoming, **kwargs)
@@ -196,56 +144,6 @@ class Pool1DLayer(Layer):
 
 
 class Pool2DLayer(Layer):
-    """
-    2D pooling layer
-
-    Performs 2D mean or max-pooling over the two trailing axes
-    of a 4D input tensor.
-
-    Parameters
-    ----------
-    incoming : a :class:`Layer` instance or tuple
-        The layer feeding into this layer, or the expected input shape.
-
-    pool_size : integer or iterable
-        The length of the pooling region in each dimension.  If an integer, it
-        is promoted to a square pooling region. If an iterable, it should have
-        two elements.
-
-    stride : integer, iterable or ``None``
-        The strides between sucessive pooling regions in each dimension.
-        If ``None`` then ``stride = pool_size``.
-
-    pad : integer or iterable
-        Number of elements to be added on each side of the input
-        in each dimension. Each value must be less than
-        the corresponding stride.
-
-    ignore_border : bool
-        If ``True``, partial pooling regions will be ignored.
-        Must be ``True`` if ``pad != (0, 0)``.
-
-    mode : {'max', 'average_inc_pad', 'average_exc_pad'}
-        Pooling mode: max-pooling or mean-pooling including/excluding zeros
-        from partially padded pooling regions. Default is 'max'.
-
-    **kwargs
-        Any additional keyword arguments are passed to the :class:`Layer`
-        superclass.
-
-    See Also
-    --------
-    MaxPool2DLayer : Shortcut for max pooling layer.
-
-    Notes
-    -----
-    The value used to pad the input is chosen to be less than
-    the minimum of the input, so that the output of each pooling region
-    always corresponds to some element in the unpadded input region.
-
-    Using ``ignore_border=False`` prevents Theano from using cuDNN for the
-    operation, so it will fall back to a slower implementation.
-    """
 
     def __init__(self, incoming, pool_size, stride=None, pad=(0, 0),
                  ignore_border=True, mode='max', **kwargs):
@@ -300,56 +198,6 @@ class Pool2DLayer(Layer):
 
 
 class Pool3DLayer(Layer):  # pragma: no cover
-    """
-    3D pooling layer
-
-    Performs 3D mean or max-pooling over the three trailing axes
-    of a 5D input tensor.
-
-    Parameters
-    ----------
-    incoming : a :class:`Layer` instance or tuple
-        The layer feeding into this layer, or the expected input shape.
-
-    pool_size : integer or iterable
-        The length of the pooling region in each dimension.  If an integer, it
-        is promoted to a cubic pooling region. If an iterable, it should have
-        three elements.
-
-    stride : integer, iterable or ``None``
-        The strides between sucessive pooling regions in each dimension.
-        If ``None`` then ``stride = pool_size``.
-
-    pad : integer or iterable
-        Number of elements to be added on each side of the input
-        in each dimension. Each value must be less than
-        the corresponding stride.
-
-    ignore_border : bool
-        If ``True``, partial pooling regions will be ignored.
-        Must be ``True`` if ``pad != (0, 0, 0)``.
-
-    mode : {'max', 'average_inc_pad', 'average_exc_pad'}
-        Pooling mode: max-pooling or mean-pooling including/excluding zeros
-        from partially padded pooling regions. Default is 'max'.
-
-    **kwargs
-        Any additional keyword arguments are passed to the :class:`Layer`
-        superclass.
-
-    See Also
-    --------
-    MaxPool3DLayer : Shortcut for max pooling layer.
-
-    Notes
-    -----
-    The value used to pad the input is chosen to be less than
-    the minimum of the input, so that the output of each pooling region
-    always corresponds to some element in the unpadded input region.
-
-    Using ``ignore_border=False`` prevents Theano from using cuDNN for the
-    operation, so it will fall back to a slower implementation.
-    """
 
     def __init__(self, incoming, pool_size, stride=None, pad=(0, 0, 0),
                  ignore_border=True, mode='max', **kwargs):
@@ -411,45 +259,6 @@ class Pool3DLayer(Layer):  # pragma: no cover
 
 
 class MaxPool1DLayer(Pool1DLayer):
-    """
-    1D max-pooling layer
-
-    Performs 1D max-pooling over the trailing axis of a 3D input tensor.
-
-    Parameters
-    ----------
-    incoming : a :class:`Layer` instance or tuple
-        The layer feeding into this layer, or the expected input shape.
-
-    pool_size : integer or iterable
-        The length of the pooling region. If an iterable, it should have a
-        single element.
-
-    stride : integer, iterable or ``None``
-        The stride between sucessive pooling regions.
-        If ``None`` then ``stride == pool_size``.
-
-    pad : integer or iterable
-        The number of elements to be added to the input on each side.
-        Must be less than stride.
-
-    ignore_border : bool
-        If ``True``, partial pooling regions will be ignored.
-        Must be ``True`` if ``pad != 0``.
-
-    **kwargs
-        Any additional keyword arguments are passed to the :class:`Layer`
-        superclass.
-
-    Notes
-    -----
-    The value used to pad the input is chosen to be less than
-    the minimum of the input, so that the output of each pooling region
-    always corresponds to some element in the unpadded input region.
-
-    Using ``ignore_border=False`` prevents Theano from using cuDNN for the
-    operation, so it will fall back to a slower implementation.
-    """
 
     def __init__(self, incoming, pool_size, stride=None, pad=0,
                  ignore_border=True, **kwargs):
@@ -463,47 +272,6 @@ class MaxPool1DLayer(Pool1DLayer):
 
 
 class MaxPool2DLayer(Pool2DLayer):
-    """
-    2D max-pooling layer
-
-    Performs 2D max-pooling over the two trailing axes of a 4D input tensor.
-
-    Parameters
-    ----------
-    incoming : a :class:`Layer` instance or tuple
-        The layer feeding into this layer, or the expected input shape.
-
-    pool_size : integer or iterable
-        The length of the pooling region in each dimension.  If an integer, it
-        is promoted to a square pooling region. If an iterable, it should have
-        two elements.
-
-    stride : integer, iterable or ``None``
-        The strides between sucessive pooling regions in each dimension.
-        If ``None`` then ``stride = pool_size``.
-
-    pad : integer or iterable
-        Number of elements to be added on each side of the input
-        in each dimension. Each value must be less than
-        the corresponding stride.
-
-    ignore_border : bool
-        If ``True``, partial pooling regions will be ignored.
-        Must be ``True`` if ``pad != (0, 0)``.
-
-    **kwargs
-        Any additional keyword arguments are passed to the :class:`Layer`
-        superclass.
-
-    Notes
-    -----
-    The value used to pad the input is chosen to be less than
-    the minimum of the input, so that the output of each pooling region
-    always corresponds to some element in the unpadded input region.
-
-    Using ``ignore_border=False`` prevents Theano from using cuDNN for the
-    operation, so it will fall back to a slower implementation.
-    """
 
     def __init__(self, incoming, pool_size, stride=None, pad=(0, 0),
                  ignore_border=True, **kwargs):
@@ -515,51 +283,9 @@ class MaxPool2DLayer(Pool2DLayer):
                                              mode='max',
                                              **kwargs)
 
-# TODO: add reshape-based implementation to MaxPool*DLayer
 
 
 class MaxPool3DLayer(Pool3DLayer):  # pragma: no cover
-    """
-    3D max-pooling layer
-
-    Performs 3D max-pooling over the three trailing axes of a 5D input tensor.
-
-    Parameters
-    ----------
-    incoming : a :class:`Layer` instance or tuple
-        The layer feeding into this layer, or the expected input shape.
-
-    pool_size : integer or iterable
-        The length of the pooling region in each dimension.  If an integer, it
-        is promoted to a cubic pooling region. If an iterable, it should have
-        three elements.
-
-    stride : integer, iterable or ``None``
-        The strides between sucessive pooling regions in each dimension.
-        If ``None`` then ``stride = pool_size``.
-
-    pad : integer or iterable
-        Number of elements to be added on each side of the input
-        in each dimension. Each value must be less than
-        the corresponding stride.
-
-    ignore_border : bool
-        If ``True``, partial pooling regions will be ignored.
-        Must be ``True`` if ``pad != (0, 0, 0)``.
-
-    **kwargs
-        Any additional keyword arguments are passed to the :class:`Layer`
-        superclass.
-
-    Notes
-    -----
-    The value used to pad the input is chosen to be less than
-    the minimum of the input, so that the output of each pooling region
-    always corresponds to some element in the unpadded input region.
-
-    Using ``ignore_border=False`` prevents Theano from using cuDNN for the
-    operation, so it will fall back to a slower implementation.
-    """
 
     def __init__(self, incoming, pool_size, stride=None, pad=(0, 0, 0),
                  ignore_border=True, **kwargs):
@@ -573,34 +299,12 @@ class MaxPool3DLayer(Pool3DLayer):  # pragma: no cover
 
 
 if not hasattr(T.signal.pool, 'pool_3d'):  # pragma: no cover
-    # Hide Pool3DLayer/MaxPool3DLayer for old Theano versions
     del Pool3DLayer, MaxPool3DLayer
     __all__.remove('Pool3DLayer')
     __all__.remove('MaxPool3DLayer')
 
 
 class Upscale1DLayer(Layer):
-    """
-    1D upscaling layer
-
-    Performs 1D upscaling over the trailing axis of a 3D input tensor.
-
-    Parameters
-    ----------
-    incoming : a :class:`Layer` instance or tuple
-        The layer feeding into this layer, or the expected input shape.
-
-    scale_factor : integer or iterable
-        The scale factor. If an iterable, it should have one element.
-
-    mode : {'repeat', 'dilate'}
-        Upscaling mode: repeat element values or upscale leaving zeroes between
-        upscaled elements. Default is 'repeat'.
-
-    **kwargs
-        Any additional keyword arguments are passed to the :class:`Layer`
-        superclass.
-    """
 
     def __init__(self, incoming, scale_factor, mode='repeat', **kwargs):
         super(Upscale1DLayer, self).__init__(incoming, **kwargs)
@@ -637,35 +341,6 @@ class Upscale1DLayer(Layer):
 
 
 class Upscale2DLayer(Layer):
-    """
-    2D upscaling layer
-
-    Performs 2D upscaling over the two trailing axes of a 4D input tensor.
-
-    Parameters
-    ----------
-    incoming : a :class:`Layer` instance or tuple
-        The layer feeding into this layer, or the expected input shape.
-
-    scale_factor : integer or iterable
-        The scale factor in each dimension. If an integer, it is promoted to
-        a square scale factor region. If an iterable, it should have two
-        elements.
-
-    mode : {'repeat', 'dilate'}
-        Upscaling mode: repeat element values or upscale leaving zeroes between
-        upscaled elements. Default is 'repeat'.
-
-    **kwargs
-        Any additional keyword arguments are passed to the :class:`Layer`
-        superclass.
-
-    Notes
-    -----
-    Using ``mode='dilate'`` followed by a convolution can be
-    realized more efficiently with a transposed convolution, see
-    :class:`lasagne.layers.TransposedConv2DLayer`.
-    """
 
     def __init__(self, incoming, scale_factor, mode='repeat', **kwargs):
         super(Upscale2DLayer, self).__init__(incoming, **kwargs)
@@ -706,29 +381,6 @@ class Upscale2DLayer(Layer):
 
 
 class Upscale3DLayer(Layer):
-    """
-    3D upscaling layer
-
-    Performs 3D upscaling over the three trailing axes of a 5D input tensor.
-
-    Parameters
-    ----------
-    incoming : a :class:`Layer` instance or tuple
-        The layer feeding into this layer, or the expected input shape.
-
-    scale_factor : integer or iterable
-        The scale factor in each dimension. If an integer, it is promoted to
-        a cubic scale factor region. If an iterable, it should have three
-        elements.
-
-    mode : {'repeat', 'dilate'}
-        Upscaling mode: repeat element values or upscale leaving zeroes between
-        upscaled elements. Default is 'repeat'.
-
-    **kwargs
-        Any additional keyword arguments are passed to the :class:`Layer`
-        superclass.
-    """
 
     def __init__(self, incoming, scale_factor, mode='repeat', **kwargs):
         super(Upscale3DLayer, self).__init__(incoming, **kwargs)
@@ -775,44 +427,6 @@ class Upscale3DLayer(Layer):
 
 
 class FeaturePoolLayer(Layer):
-    """
-    lasagne.layers.FeaturePoolLayer(incoming, pool_size, axis=1,
-    pool_function=theano.tensor.max, **kwargs)
-
-    Feature pooling layer
-
-    This layer pools across a given axis of the input. By default this is axis
-    1, which corresponds to the feature axis for :class:`DenseLayer`,
-    :class:`Conv1DLayer` and :class:`Conv2DLayer`. The layer can be used to
-    implement maxout.
-
-    Parameters
-    ----------
-    incoming : a :class:`Layer` instance or tuple
-        The layer feeding into this layer, or the expected input shape.
-
-    pool_size : integer
-        the size of the pooling regions, i.e. the number of features / feature
-        maps to be pooled together.
-
-    axis : integer
-        the axis along which to pool. The default value of ``1`` works
-        for :class:`DenseLayer`, :class:`Conv1DLayer` and :class:`Conv2DLayer`.
-
-    pool_function : callable
-        the pooling function to use. This defaults to `theano.tensor.max`
-        (i.e. max-pooling) and can be replaced by any other aggregation
-        function.
-
-    **kwargs
-        Any additional keyword arguments are passed to the :class:`Layer`
-        superclass.
-
-    Notes
-    -----
-    This layer requires that the size of the axis along which it pools is a
-    multiple of the pool size.
-    """
 
     def __init__(self, incoming, pool_size, axis=1, pool_function=T.max,
                  **kwargs):
@@ -846,32 +460,6 @@ class FeaturePoolLayer(Layer):
 
 
 class FeatureWTALayer(Layer):
-    """
-    'Winner Take All' layer
-
-    This layer performs 'Winner Take All' (WTA) across feature maps: zero out
-    all but the maximal activation value within a region.
-
-    Parameters
-    ----------
-    incoming : a :class:`Layer` instance or tuple
-        The layer feeding into this layer, or the expected input shape.
-
-    pool_size : integer
-        the number of feature maps per region.
-
-    axis : integer
-        the axis along which the regions are formed.
-
-    **kwargs
-        Any additional keyword arguments are passed to the :class:`Layer`
-        superclass.
-
-    Notes
-    -----
-    This layer requires that the size of the axis along which it groups units
-    is a multiple of the pool size.
-    """
 
     def __init__(self, incoming, pool_size, axis=1, **kwargs):
         super(FeatureWTALayer, self).__init__(incoming, **kwargs)
@@ -912,28 +500,6 @@ class FeatureWTALayer(Layer):
 
 
 class GlobalPoolLayer(Layer):
-    """
-    lasagne.layers.GlobalPoolLayer(incoming,
-    pool_function=theano.tensor.mean, **kwargs)
-
-    Global pooling layer
-
-    This layer pools globally across all trailing dimensions beyond the 2nd.
-
-    Parameters
-    ----------
-    incoming : a :class:`Layer` instance or tuple
-        The layer feeding into this layer, or the expected input shape.
-
-    pool_function : callable
-        the pooling function to use. This defaults to `theano.tensor.mean`
-        (i.e. mean-pooling) and can be replaced by any other aggregation
-        function.
-
-    **kwargs
-        Any additional keyword arguments are passed to the :class:`Layer`
-        superclass.
-    """
 
     def __init__(self, incoming, pool_function=T.mean, **kwargs):
         super(GlobalPoolLayer, self).__init__(incoming, **kwargs)
@@ -1001,68 +567,6 @@ def pool_2d_nxn_regions(inputs, output_size, mode='max'):
 
 
 class SpatialPyramidPoolingLayer(Layer):
-    """
-    Spatial Pyramid Pooling Layer
-
-    Performs spatial pyramid pooling (SPP) over the input.
-    It will turn a 2D input of arbitrary size into an output of fixed
-    dimension.
-    Hence, the convolutional part of a DNN can be connected to a dense part
-    with a fixed number of nodes even if the dimensions of the
-    input image are unknown.
-
-    The pooling is performed over :math:`l` pooling levels.
-    Each pooling level :math:`i` will create :math:`M_i` output features.
-    :math:`M_i` is given by :math:`n_i * n_i`,
-    with :math:`n_i` as the number of pooling operation per dimension in
-    level :math:`i`, and we use a list of the :math:`n_i`'s as a
-    parameter for SPP-Layer.
-    The length of this list is the level of the spatial pyramid.
-
-    Parameters
-    ----------
-    incoming : a :class:`Layer` instance or tuple
-        The layer feeding into this layer, or the expected input shape.
-
-    pool_dims : list of integers
-        The list of :math:`n_i`'s that define the output dimension of each
-        pooling level :math:`i`. The length of pool_dims is the level of
-        the spatial pyramid.
-
-    mode : string
-        Pooling mode, one of 'max', 'average_inc_pad', 'average_exc_pad'
-        Defaults to 'max'.
-
-    implementation : string
-        Either 'fast' or 'kaiming'. The 'fast' version uses theano's pool_2d
-        operation, which is fast but does not work for all input sizes.
-        The 'kaiming' mode is slower but implements the pooling as described
-        in [1], and works with any input size.
-
-    **kwargs
-        Any additional keyword arguments are passed to the :class:`Layer`
-        superclass.
-
-    Notes
-    -----
-    This layer should be inserted between the convolutional part of a
-    DNN and its dense part. Convolutions can be used for
-    arbitrary input dimensions, but the size of their output will
-    depend on their input dimensions. Connecting the output of the
-    convolutional to the dense part then usually demands us to fix
-    the dimensions of the network's InputLayer.
-    The spatial pyramid pooling layer, however, allows us to leave the
-    network input dimensions arbitrary. The advantage over a global
-    pooling layer is the added robustness against object deformations
-    due to the pooling on different scales.
-
-    References
-    ----------
-    .. [1] He, Kaiming et al (2015):
-           Spatial Pyramid Pooling in Deep Convolutional Networks
-           for Visual Recognition.
-           http://arxiv.org/pdf/1406.4729.pdf.
-    """
     def __init__(self, incoming, pool_dims=[4, 2, 1], mode='max',
                  implementation='fast', **kwargs):
             super(SpatialPyramidPoolingLayer, self).__init__(incoming,
@@ -1074,9 +578,6 @@ class SpatialPyramidPoolingLayer(Layer):
                                  % (self.input_shape,))
 
             if implementation != 'kaiming':  # pragma: no cover
-                # Check if the running theano version supports symbolic
-                # variables as arguments for pool_2d. This is required
-                # unless using implementation='kaiming'
                 try:
                     pool_2d(T.tensor4(),
                             ws=T.ivector(),
